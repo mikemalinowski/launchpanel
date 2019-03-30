@@ -1,0 +1,13 @@
+#actionInfo {
+    color: rgba(255, 255, 255, 100);
+    font: bold 12px "Helvetica";
+    background-color: rbg(20, 20, 20);
+}
+
+QForm {
+    border: 1px solid black;
+}
+
+QWizard {
+    background-color:red;
+}

@@ -1,0 +1,29 @@
+
+QTabBar::tab {
+	min-width: 24px;
+    min-height: 25px;
+    border: 1px solid black;
+    border-right: 0px;
+    border-bottom: 0px;
+    padding: 10px;
+    margin: 0px;
+}
+
+QTabBar::tab:last {
+    border-bottom: 1px solid black;
+}
+
+QTabBar::tab:last {
+    max-width: 24px;
+    border-right: 1px solid black;
+    border-bottom: 0px;
+}
+
+QTabBar::tab:selected,
+QTabBar::tab:hover {
+
+	background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 rgba(255, 255, 255, 30), stop:1 rgba(_FOREGROUND_, 0));
+	background-image: url(_TAB_BG_);
+	color: rgb(_FOREGROUND_);
+    border-bottom: 0px;
+}

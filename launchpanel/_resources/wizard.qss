@@ -1,0 +1,9 @@
+
+QPushButton {
+    min-height: 30px;
+    min-width: 40px;
+}
+
+QLineEdit {
+    min-height: 30px;
+}
