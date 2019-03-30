@@ -82,6 +82,8 @@ class ClassWizard(qute.QWizard):
             self,
         )
 
+        self.save_directory = None
+
         # -- Add pages to the wizard
         self.addPage(IntroductionPage())
         self.addPage(DetailsPage())
@@ -113,17 +115,17 @@ class ClassWizard(qute.QWizard):
             formatted_action = []
             for line in action_command.splitlines():
                 formatted_action.append((' ' * 8) + line)
-            action_command = '/r/n'.join(formatted_action)
+            action_command = '\r\n'.join(formatted_action)
 
         elif action_type == 1:
             # -- We're dealing with a python file which needs executing
-            action_command.replace('//', '/')
-            action_command = (' ' * 8) + 'execFile(/'%s/')' % action_command
+            action_command.replace('\\', '/')
+            action_command = (' ' * 8) + 'execFile(\'%s\')' % action_command
 
         elif action_type == 2:
             # -- We're dealing with a subprocess
             action_command = action_command.replace('//', '/')
-            action_command = 'subprocess.Popen(/'%s/')' % action_command
+            action_command = 'subprocess.Popen(\'%s\')' % action_command
             action_command = (' ' * 8) + action_command
 
         # -- Start updating the template
@@ -141,6 +143,9 @@ class ClassWizard(qute.QWizard):
         # -- Write out the file
         with open(save_location, 'w') as f:
             f.write(template)
+
+        # -- Store the save directory
+        self.save_directory = save_dir
 
         # -- Super to finalise
         super(ClassWizard, self).accept()

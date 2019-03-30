@@ -7,6 +7,11 @@ organised into tabs based on their groups. The user has the ability to
 define tab orientation, icon size and plugin locations.
 
 This module has the following dependencies:
+
+    * launchpad
+    * qute
+    * scribble (pip install scribble)
+
 """
 import os
 import qute
@@ -352,12 +357,16 @@ class LaunchPanel(qute.QWidget):
 
         # -- Add the path and refresh the ui
         self.factory.add_path(path)
-        self.populate()
 
         # -- Update the paths in the scribble data
         settings = scribble.get(self.environment_id)
         settings['plugin_locations'] = self.factory.paths()
         settings.save()
+
+        # -- Re-populate the ui
+        self.populate()
+        self.populateUserActions()
+
 
     # --------------------------------------------------------------------------
     def removePluginPath(self, path=None):
@@ -460,9 +469,10 @@ class LaunchPanel(qute.QWidget):
     def initiateWizard(self):
         wizard = create.ClassWizard()
         wizard.exec_()
-        self.populate()
-        self.populateUserActions()
 
+        print('Save Location : %s' % wizard.save_directory)
+        if wizard.save_directory:
+            self.addPluginPath(wizard.save_directory)
 
 # ------------------------------------------------------------------------------
 # noinspection PyUnresolvedReferences,PyPep8Naming
@@ -487,6 +497,7 @@ class ActionListWidget(qute.QListWidget):
         self.setViewMode(self.IconMode)
         self.setIconSize(self._size)
         self.setResizeMode(self.Adjust)
+        self.setSortingEnabled(True)
         self.setMouseTracking(True)
         self.setSelectionMode(self.NoSelection)
         self.setContextMenuPolicy(qute.Qt.DefaultContextMenu)
@@ -496,7 +507,7 @@ class ActionListWidget(qute.QListWidget):
         self.action_list = action_list or factory.identifiers()
 
         # -- Hook up signals
-        self.clicked.connect(self.run)
+        #self.itemActivated.connect(self.run)
 
         # -- Populate the panel
         self.populate()
@@ -519,25 +530,31 @@ class ActionListWidget(qute.QListWidget):
         self.clear()
         valid_actions = self.factory.identifiers()
 
+        # -- Start by adding all the required items
         for idx, action_name in enumerate(self.action_list):
 
             if action_name not in valid_actions:
                 continue
 
-            action = self.factory.request(action_name)
-
             # -- Create the item
-            item = qute.QListWidgetItem('')
+            item = qute.QListWidgetItem(action_name)
             item.identifier = action_name
 
             # -- Add the item
             self.addItem(item)
+
+        # -- Now assign the delegates to the items
+        for idx in range(self.count()):
+            item = self.item(idx)
+
             delegate = ActionDelegate(
-                action,
+                self.factory.request(item.identifier),
                 self._size,
                 self,
             )
+
             delegate.needsRedraw.connect(self.viewport().update)
+
             # -- Assign the delegate
             self.setItemDelegateForRow(
                 idx,
@@ -556,15 +573,18 @@ class ActionListWidget(qute.QListWidget):
             self.itemDelegateForRow(row_idx).buildPixmaps(size)
 
     # --------------------------------------------------------------------------
-    def run(self, index):
+    def run(self, item):
         """
         Invokes the run method of the clicked action
 
         :param index: Index of the action to run
         """
-        item = self.item(index.row())
         action = self.factory.request(item.identifier)
         action.run()
+
+    def mousePressEvent(self, event):
+        if event.button() == qute.Qt.LeftButton:
+            self.run(self.itemAt(event.pos()))
 
     # --------------------------------------------------------------------------
     def contextMenuEvent(self, event):
@@ -718,7 +738,6 @@ class ActionDelegate(qute.QItemDelegate):
         This is responsible for painting the delegate. We use a delegate to
         allow us to do color/grayscale switching etc.
         """
-
         # -- Define our default draw variables. These will remain
         # -- the same unless the option state is different to the
         # -- defaults
