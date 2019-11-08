@@ -836,6 +836,10 @@ def launch(blocking=True, *args, **kwargs):
     """
     q_app = qute.qApp()
 
+    # -- get any passed args that we can use
+    title = kwargs.pop('title', '')
+    icon = kwargs.pop('icon', '')
+
     # -- Create a window and embed our widget into it
     launch_widget = LaunchPanel(*args, **kwargs)
     launch_window = qute.QMainWindow(parent=qute.mainWindow())
@@ -846,8 +850,12 @@ def launch(blocking=True, *args, **kwargs):
     launch_window.setCentralWidget(launch_widget)
 
     # -- Set the window properties
-    launch_window.setWindowTitle('Launch Panel')
-    launch_window.setWindowIcon(qute.QIcon(_get_resource('launch.png')))
+    launch_window.setWindowTitle(
+        title or 'Launch Panel'
+    )
+    launch_window.setWindowIcon(
+        qute.QIcon(icon or _get_resource('launch.png'))
+    )
 
     # -- Show the ui, and if we're blocking call the exec_
     launch_window.show()
