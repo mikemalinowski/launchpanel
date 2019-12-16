@@ -367,7 +367,6 @@ class LaunchPanel(qute.QWidget):
         self.populate()
         self.populateUserActions()
 
-
     # --------------------------------------------------------------------------
     def removePluginPath(self, path=None):
         """
@@ -588,6 +587,7 @@ class ActionListWidget(qute.QListWidget):
         action = self.factory.request(item.identifier)
         action.run()
 
+    # --------------------------------------------------------------------------
     def mousePressEvent(self, event):
         if event.button() == qute.Qt.LeftButton:
             self.run(self.itemAt(event.pos()))
