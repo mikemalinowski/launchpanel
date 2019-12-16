@@ -474,6 +474,7 @@ class LaunchPanel(qute.QWidget):
         if wizard.save_directory:
             self.addPluginPath(wizard.save_directory)
 
+
 # ------------------------------------------------------------------------------
 # noinspection PyUnresolvedReferences,PyPep8Naming
 class ActionListWidget(qute.QListWidget):
@@ -577,8 +578,13 @@ class ActionListWidget(qute.QListWidget):
         """
         Invokes the run method of the clicked action
 
-        :param index: Index of the action to run
+        :param item: action item to run
         """
+
+        # -- pass a NoneType item
+        if not item:
+            return
+
         action = self.factory.request(item.identifier)
         action.run()
 
