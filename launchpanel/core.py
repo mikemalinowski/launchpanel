@@ -326,6 +326,25 @@ class LaunchPanel(qute.QWidget):
         self.setTabMode(self.tabMode)
 
         # -- Store the current window size in our scribble settings
+        self.storeWidgetGeometry()
+
+    # --------------------------------------------------------------------------
+    # noinspection PyUnusedLocal
+    def hideEvent(self, event):
+        """
+        Initiate a settings save when the ui is hidden / closed.
+        """
+
+        # -- Store the current window size in our scribble settings
+        self.storeWidgetGeometry()
+
+    # --------------------------------------------------------------------------
+    def storeWidgetGeometry(self):
+        """
+        Save the current window position and size to settings.
+        """
+
+        # -- Store the current window size in our scribble settings
         window = self.window()
         settings = scribble.get(self.environment_id)
         settings['geometry'] = [
@@ -334,6 +353,7 @@ class LaunchPanel(qute.QWidget):
             window.width(),
             window.height(),
         ]
+
         settings.save()
 
     # --------------------------------------------------------------------------
