@@ -514,7 +514,6 @@ class ActionListWidget(qute.QListWidget):
 
         # -- Define our visual parameters on the widget
         self.setSpacing(10)
-        self.setViewMode(self.IconMode)
         self.setIconSize(self._size)
         self.setResizeMode(self.Adjust)
         self.setSortingEnabled(True)
@@ -525,9 +524,6 @@ class ActionListWidget(qute.QListWidget):
         # -- Store our factory and list of actions
         self.factory = factory
         self.action_list = action_list or factory.identifiers()
-
-        # -- Hook up signals
-        #self.itemActivated.connect(self.run)
 
         # -- Populate the panel
         self.populate()
@@ -690,6 +686,8 @@ class ActionDelegate(qute.QItemDelegate):
     LABEL_BACKGROUND = qute.QColor(*[0, 0, 0], a=200)
     BLACK_PEN = qute.QPen(qute.Qt.black)
     WHITE_PEN = qute.QPen(qute.Qt.white)
+    DESC_PEN = qute.QPen(qute.QColor(255, 255, 255, a=60))
+    DESC_ACTIVE_PEN = qute.QPen(qute.QColor(255, 255, 255, a=100))
     TRANSPARENT_BRUSH = qute.QBrush(qute.Qt.transparent)
 
     _DEFAULT_ICON = _get_resource('launch.png')
@@ -710,6 +708,7 @@ class ActionDelegate(qute.QItemDelegate):
         self.icon_bw = None
         self.size = size
         self.polygon = None
+        self.highlight = None
         self.buildPixmaps(size)
 
     # --------------------------------------------------------------------------
@@ -732,7 +731,7 @@ class ActionDelegate(qute.QItemDelegate):
 
         # -- Create a scaled version of our icon
         self.icon_colour = qute.QPixmap(icon_path).scaled(
-            size.width(),
+            size.height(),
             size.height(),
             mode=qute.Qt.SmoothTransformation,
         )
@@ -751,6 +750,33 @@ class ActionDelegate(qute.QItemDelegate):
         # -- Store this size value so it can be returned as part
         # -- of the size hint
         self.size = size
+
+        # -- We want to load the image as a q-image to allow us to
+        # -- inspect the general colour of the icon for use as a highlighting
+        # -- mechanism.
+        image = qute.QImage(icon_path)
+        counter = 0
+        r, g, b = [], [], []
+
+        # -- Cycle the pixels and pull out the colour
+        for x in range(0, image.width()):
+            for y in range(0, image.height()):
+                counter += 1
+                colors = qute.QColor(image.pixel(x, y)).getRgbF()
+
+                r.append(colors[0])
+                g.append(colors[1])
+                b.append(colors[2])
+
+        # -- Providing we have a valid image, we set the highlight
+        # -- colour
+        if len(r):
+            self.highlight = qute.QColor(
+                (sum(r) / len(r)) * 255,
+                (sum(g) / len(g)) * 255,
+                (sum(b) / len(b)) * 255,
+                a=100,
+            )
 
     # --------------------------------------------------------------------------
     # noinspection PyUnusedLocal
@@ -784,70 +810,77 @@ class ActionDelegate(qute.QItemDelegate):
             icon_opacity = 0.25
             icon_px = self.icon_bw
 
-        # -- Get the poly shape and offset to the location of the
-        # -- item to be drawn
-        shape = self.polygon.translated(option.rect.x(), option.rect.y())
-
-        # -- Start by drawing the background colour
-        disabled_factor = 1 - int(disabled)
-        painter.setBrush(
-            qute.QColor(
-                self.BACKGROUND_COLOUR[0] * disabled_factor,
-                self.BACKGROUND_COLOUR[1] * disabled_factor,
-                self.BACKGROUND_COLOUR[2] * disabled_factor,
-                icon_opacity * 255 * 0.1,
+        if hovering:
+            gradient = qute.QLinearGradient(
+                0,
+                option.rect.y(),
+                0,
+                option.rect.y() + option.rect.height(),
             )
-        )
-        painter.drawPolygon(shape)
+
+            if self.highlight:
+                gradient.setColorAt(0, self.highlight)
+                gradient.setColorAt(1, qute.QColor(0, 0, 0, a=0))
+                painter.setBrush(gradient)
+                painter.setPen(qute.QColor(0, 0, 0, a=0))
+                painter.drawRect(
+                    option.rect,
+                )
 
         # -- Define the opacity of the painter based on the values
         # -- we have been given and draw the pixmap
         painter.setOpacity(icon_opacity)
         painter.drawPixmap(
-            option.rect,
+            option.rect.x(),
+            option.rect.y(),
+            self.size.height(),
+            self.size.height(),
             icon_px,
         )
 
         # -- Now we restore the opacity back to full
         painter.setOpacity(1)
 
-        # -- Now lets draw the border
-        painter.setPen(self.BLACK_PEN)
-        painter.setBrush(self.TRANSPARENT_BRUSH)
-
-        painter.drawPolygon(
-            shape,
+        painter.setFont(qute.QFont("ariel", int(self.size.height() * 0.15)))
+        text_rect = qute.QRect(
+            option.rect.x() + self.size.width() + (self.size.width() * 0.2),
+            option.rect.y() + (self.size.height() * 0.1),
+            option.rect.width(),
+            option.rect.height() * 0.5,
+        )
+        # -- Draw the actual text
+        painter.setPen(qute.QPen(qute.Qt.white))
+        painter.drawText(
+            text_rect,
+            qute.Qt.AlignLeft | qute.Qt.AlignVCenter,
+            self.action.Name,
         )
 
-        # If we're hovering, draw the name
+        painter.setPen(self.DESC_PEN)
+
         if hovering:
-            # -- Define the box structure for the text
-            height = 20
-            _ = option.rect.height() - height * 1,
-            text_rect = qute.QRect(
-                option.rect.x(),
-                option.rect.y() + (self.size.height() - height),
-                option.rect.width(),
-                height,
-            )
+            painter.setPen(self.DESC_ACTIVE_PEN)
 
-            # text_rect = option.rect
-            # -- Draw the box for the text to go into
-            painter.fillRect(
-                text_rect,
-                qute.QBrush(self.LABEL_BACKGROUND)
-            )
-            painter.drawRect(
-                text_rect,
-            )
+        y_offset = 50
+        desc_rect = qute.QRect(
+            option.rect.x() + self.size.width() + (self.size.width() * 0.4),
+            option.rect.y() + (option.rect.height() * 0.5),
+            option.rect.width(),
+            option.rect.height() - (option.rect.height() * 0.5),
+        )
+        # -- Draw the actual text
+        painter.drawText(
+            desc_rect,
+            qute.Qt.AlignLeft | qute.Qt.AlignVCenter,
+            self.action.Description,
+        )
 
-            # -- Draw the actual text
-            painter.setPen(qute.QPen(qute.Qt.white))
-            painter.drawText(
-                text_rect,
-                qute.Qt.AlignHCenter | qute.Qt.AlignVCenter,
-                self.action.Name,
-            )
+        painter.drawLine(
+            option.rect.x(),
+            option.rect.y(),
+            option.rect.width(),
+            option.rect.y(),
+        )
 
 
 # ------------------------------------------------------------------------------
