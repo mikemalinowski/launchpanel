@@ -62,12 +62,21 @@ class LaunchPanel(qute.QWidget):
                  plugin_locations=None,
                  environment_id='launchpanel',
                  style='space',
+                 title='Launch Panel',
+                 style_overrides=None,
                  parent=None):
         super(LaunchPanel, self).__init__(parent=parent)
 
         # -- Store our scribble id
         self.environment_id = environment_id
         self.qute_style = style
+
+        # -- Store the base launch panel title
+        self.base_title = title
+
+        # -- Define our styling data
+        self.styling_data = self._STYLE_KWARGS.copy()
+        self.styling_data.update(style_overrides or dict())
 
         # -- Set the window properties
         self.setWindowTitle('Launch Panel')
@@ -89,13 +98,16 @@ class LaunchPanel(qute.QWidget):
         # -- Apply a style to the window. We take our default
         # -- requested style from Qute as well as our own style. We
         # -- then pass any keyword argument replacements in
+        styling_data = self._STYLE_KWARGS.copy()
+        styling_data.update(style_overrides or dict())
+
         qute.applyStyle(
             [
                 self.qute_style,
                 _get_resource('style.qss'),
             ],
             self,
-            **self._STYLE_KWARGS
+            **self.styling_data
         )
 
         # -- Set the window geometry if we have the settings
@@ -111,6 +123,10 @@ class LaunchPanel(qute.QWidget):
                 ]
             )
         )
+
+        # -- Update the icon size variable to reflect what it actually
+        # -- is
+        self.ui.iconSize.setValue(settings.get('icon_size', 70))
 
         # -- Combine any paths we're given with any stored paths
         # -- and then ensure we remove any duplicates
@@ -191,7 +207,7 @@ class LaunchPanel(qute.QWidget):
                     _get_resource('north.qss'),
                 ],
                 self.ui.tabPanel,
-                **self._STYLE_KWARGS
+                **self.styling_data
             )
 
         # -- To be here we're expected to have the tab on the side, or we're
@@ -206,7 +222,7 @@ class LaunchPanel(qute.QWidget):
                     _get_resource('west.qss'),
                 ],
                 self.ui.tabPanel,
-                **self._STYLE_KWARGS
+                **self.styling_data
             )
 
     # --------------------------------------------------------------------------
@@ -489,7 +505,6 @@ class LaunchPanel(qute.QWidget):
         wizard = create.ClassWizard()
         wizard.exec_()
 
-        print('Save Location : %s' % wizard.save_directory)
         if wizard.save_directory:
             self.addPluginPath(wizard.save_directory)
 
@@ -508,6 +523,7 @@ class ActionListWidget(qute.QListWidget):
 
         # -- store the launch panel
         self._launch_panel = parent
+        self._parent = parent
 
         # -- Define some optimisation variables
         self._size = qute.QSize(size, size)
@@ -516,7 +532,7 @@ class ActionListWidget(qute.QListWidget):
         self.setSpacing(10)
         self.setIconSize(self._size)
         self.setResizeMode(self.Adjust)
-        self.setSortingEnabled(True)
+        self.setSortingEnabled(False)
         self.setMouseTracking(True)
         self.setSelectionMode(self.NoSelection)
         self.setContextMenuPolicy(qute.Qt.DefaultContextMenu)
@@ -537,6 +553,10 @@ class ActionListWidget(qute.QListWidget):
             """ % _get_resource('bg.png')
         )
 
+        # -- Hook up the event to allow the window title to show the
+        # -- text of the active item
+        self.itemEntered.connect(self.updateWindowTitle)
+
     # --------------------------------------------------------------------------
     def populate(self):
         """
@@ -555,6 +575,7 @@ class ActionListWidget(qute.QListWidget):
             # -- Create the item
             item = qute.QListWidgetItem(action_name)
             item.identifier = action_name
+            item.setToolTip(action_name)
 
             # -- Add the item
             self.addItem(item)
@@ -671,6 +692,23 @@ class ActionListWidget(qute.QListWidget):
 
         self._launch_panel.populateUserActions()
 
+    # --------------------------------------------------------------------------
+    def updateWindowTitle(self, item):
+        """
+        Used to update the title bar of the window based on what item
+        is being hovered over
+
+        :param item: Item to display text from
+
+        :return: None
+        """
+        if not item:
+            return
+
+        self.window().setWindowTitle(
+            '%s : %s' % (self._parent.base_title, item.text())
+        )
+
 
 # ------------------------------------------------------------------------------
 # noinspection PyUnresolvedReferences,PyPep8Naming
@@ -759,10 +797,10 @@ class ActionDelegate(qute.QItemDelegate):
         r, g, b = [], [], []
 
         # -- Cycle the pixels and pull out the colour
-        for x in range(0, image.width()):
-            for y in range(0, image.height()):
+        for x in range(0, int(image.width() * 0.1)):
+            for y in range(0, int(image.height() * 0.1)):
                 counter += 1
-                colors = qute.QColor(image.pixel(x, y)).getRgbF()
+                colors = qute.QColor(image.pixel(x * 10, y * 10)).getRgbF()
 
                 r.append(colors[0])
                 g.append(colors[1])
@@ -840,8 +878,8 @@ class ActionDelegate(qute.QItemDelegate):
 
         # -- Now we restore the opacity back to full
         painter.setOpacity(1)
-
-        painter.setFont(qute.QFont("ariel", int(self.size.height() * 0.15)))
+        font_size = max(8, (int(self.size.height() * 0.15)))
+        painter.setFont(qute.QFont("ariel", font_size))
         text_rect = qute.QRect(
             option.rect.x() + self.size.width() + (self.size.width() * 0.2),
             option.rect.y() + (self.size.height() * 0.1),
