@@ -896,7 +896,13 @@ def launch(blocking=True, show_splash=True, *args, **kwargs):
     q_app = qute.qApp()
 
     if show_splash:
-        splash_screen = qute.QSplashScreen(_get_resource('splash.png'))
+
+        # -- Allow the user to give their own splash screen
+        splash_path = _get_resource('splash.png')
+        if isinstance(show_splash, (str, unicode)) and os.path.exists(show_splash):
+            splash_path = show_splash
+
+        splash_screen = qute.QSplashScreen(splash_path)
         splash_screen.show()
 
     # -- get any passed args that we can use
