@@ -885,7 +885,7 @@ class ActionDelegate(qute.QItemDelegate):
 
 # ------------------------------------------------------------------------------
 # noinspection PyUnresolvedReferences
-def launch(blocking=True, *args, **kwargs):
+def launch(blocking=True, show_splash=True, *args, **kwargs):
     """
     Creates (or uses) the QApplication and instances the widget.
     :param blocking:
@@ -894,6 +894,10 @@ def launch(blocking=True, *args, **kwargs):
     :return:
     """
     q_app = qute.qApp()
+
+    if show_splash:
+        splash_screen = qute.QSplashScreen(_get_resource('splash.png'))
+        splash_screen.show()
 
     # -- get any passed args that we can use
     title = kwargs.pop('title', '')
@@ -918,6 +922,9 @@ def launch(blocking=True, *args, **kwargs):
 
     # -- Show the ui, and if we're blocking call the exec_
     launch_window.show()
+
+    if show_splash:
+        splash_screen.finish(launch_window)
 
     if blocking:
         q_app.exec_()
