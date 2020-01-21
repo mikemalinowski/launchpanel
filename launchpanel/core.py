@@ -14,7 +14,9 @@ This module has the following dependencies:
 
 """
 import os
+import sys
 import qute
+import StringIO
 import scribble
 import launchpad
 import functools
@@ -622,7 +624,12 @@ class ActionListWidget(qute.QListWidget):
             return
 
         action = self.factory.request(item.identifier)
-        action.run()
+        with LogMonitor(self._parent.ui.launchLog):
+            try:
+                action.run()
+
+            except:
+                print(sys.exc_info())
 
     # --------------------------------------------------------------------------
     def mousePressEvent(self, event):
@@ -708,6 +715,44 @@ class ActionListWidget(qute.QListWidget):
         self.window().setWindowTitle(
             '%s : %s' % (self._parent.base_title, item.text())
         )
+
+
+# ------------------------------------------------------------------------------
+class LogMonitor(object):
+    """
+    This is an stdout intercepter to update a log widget with any
+    output during execution.
+    """
+    MAX_LOGS = 100
+
+    # --------------------------------------------------------------------------
+    def __init__(self, widget):
+        super(LogMonitor, self).__init__()
+        self._widget = widget
+        self.logs = list()
+        self._std_out = StringIO.StringIO()
+        self._std_err = StringIO.StringIO()
+
+    # --------------------------------------------------------------------------
+    def __enter__(self):
+        sys.stdout = self
+        sys.stderr = self
+        return self
+
+    # --------------------------------------------------------------------------
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+
+    # --------------------------------------------------------------------------
+    def write(self, message):
+        current_text = self._widget.document().toPlainText()
+        current_lines = current_text.split('\n')
+        if current_lines > self.MAX_LOGS:
+            current_lines = current_lines[len(current_lines)-self.MAX_LOGS:]
+
+        current_lines.append(message)
+        self._widget.setText('\n'.join(current_lines))
 
 
 # ------------------------------------------------------------------------------
