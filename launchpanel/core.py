@@ -16,6 +16,7 @@ This module has the following dependencies:
 import os
 import sys
 import qute
+import ctypes
 import StringIO
 import scribble
 import launchpad
@@ -83,6 +84,12 @@ class LaunchPanel(qute.QWidget):
         # -- Set the window properties
         self.setWindowTitle('Launch Panel')
         self.setWindowIcon(qute.QIcon(_get_resource('launch.png')))
+
+        # -- If we're on windows we need to tell windows that python is actually just
+        # -- hosting an application and is not the application itself.
+        if sys.platform == 'win32':
+            myappid = u'mycompany.myproduct.subproduct.version'  # arbitrary string
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
         # -- Create a default layout
         self.setLayout(qute.slimify(qute.QVBoxLayout()))
