@@ -1,1 +1,1 @@
-APP_ID = 'twisted.space.launchpanel.1.0'
+APP_ID = u'twisted.space.launchpanel.1.0'

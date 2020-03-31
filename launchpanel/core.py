@@ -24,6 +24,7 @@ import functools
 import collections
 
 from . import create
+from . import constants
 
 
 # ------------------------------------------------------------------------------
@@ -88,8 +89,7 @@ class LaunchPanel(qute.QWidget):
         # -- If we're on windows we need to tell windows that python is actually just
         # -- hosting an application and is not the application itself.
         if sys.platform == 'win32':
-            myappid = u'mycompany.myproduct.subproduct.version'  # arbitrary string
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(constants.APP_ID)
 
         # -- Create a default layout
         self.setLayout(qute.slimify(qute.QVBoxLayout()))
