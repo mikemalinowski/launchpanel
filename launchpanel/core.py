@@ -16,8 +16,8 @@ This module has the following dependencies:
 import os
 import sys
 import qute
+import time
 import ctypes
-import StringIO
 import scribble
 import launchpad
 import functools
@@ -61,6 +61,8 @@ class LaunchPanel(qute.QWidget):
         _TAB_BG_=_get_resource('bg.png'),
     )
 
+    tabStateUpdated = qute.Signal(object)
+
     # --------------------------------------------------------------------------
     def __init__(self,
                  plugin_locations=None,
@@ -81,6 +83,9 @@ class LaunchPanel(qute.QWidget):
         # -- Define our styling data
         self.styling_data = self._STYLE_KWARGS.copy()
         self.styling_data.update(style_overrides or dict())
+
+        # -- Define our alert icon
+        self._alert_icon = qute.QIcon(qute.QPixmap(_get_resource('alert.png')))
 
         # -- Set the window properties
         self.setWindowTitle('Launch Panel')
@@ -135,7 +140,8 @@ class LaunchPanel(qute.QWidget):
 
         # -- Update the icon size variable to reflect what it actually
         # -- is
-        self.ui.iconSize.setValue(settings.get('icon_size', 70))
+        self.ui.iconSize.setValue(settings.get('icon_size', 50))
+        self.ui.statusInterval.setValue(settings.get('status_inverval', 1800))
 
         # -- Combine any paths we're given with any stored paths
         # -- and then ensure we remove any duplicates
@@ -165,6 +171,15 @@ class LaunchPanel(qute.QWidget):
         # -- Now we restore our tab based on the scribble settings
         self.restoreActiveTab()
 
+        # -- Define the timer we will use to perform status
+        # -- check updates. Default to 30 minutes if no settings
+        # -- are present
+        self._timer = qute.QTimer(self)
+        self._timer.setSingleShot(False)
+        self._timer.setInterval(settings.get('status_inverval', 1800) * 1000)
+        self._timer.timeout.connect(self.performStatusCheck)
+        self._timer.start()
+
         # -- Hook up signals and slots
         self.ui.iconSize.valueChanged.connect(self.resizeIcons)
         self.ui.addPluginPath.clicked.connect(self.addPluginPath)
@@ -172,6 +187,10 @@ class LaunchPanel(qute.QWidget):
         self.ui.tabPanel.currentChanged.connect(self.storeActiveTab)
         self.ui.removePluginPath.clicked.connect(self.removePluginPath)
         self.ui.tabModeCombo.currentIndexChanged.connect(self.setTabMode)
+        self.ui.statusInterval.valueChanged.connect(self.updateStatusInterval)
+
+        # -- Begin with a status check
+        self.performStatusCheck()
 
     # --------------------------------------------------------------------------
     def setTabMode(self, tab_mode=None):
@@ -284,12 +303,21 @@ class LaunchPanel(qute.QWidget):
         group_names = reversed(sorted(list(groups.keys())))
 
         for group_name in group_names:
+
+            # -- We do not show uncategorised items. They will
+            # -- show in the 'All' tab
+            if group_name == 'Uncategorised':
+                continue
+
             widget = ActionListWidget(
                 factory=self.factory,
                 action_list=groups[group_name],
                 size=settings.get('icon_size', 75),
                 parent=self,
             )
+
+            # -- Hook up event signals specific to this widget type
+            widget.alertPropogation.connect(self.updateTabState)
 
             # -- Hook up the event to update the ui whenever the
             # -- user scrolls over
@@ -327,6 +355,9 @@ class LaunchPanel(qute.QWidget):
             size=settings.get('icon_size', 75),
             parent=self,
         )
+
+        # -- Hook up event signals specific to this widget type
+        widget.alertPropogation.connect(self.updateTabState)
 
         # -- Hook up the event to update the ui whenever the
         # -- user scrolls over
@@ -491,6 +522,24 @@ class LaunchPanel(qute.QWidget):
         settings.save()
 
     # --------------------------------------------------------------------------
+    def updateStatusInterval(self, inverval=None):
+        """
+        Updates the time between status check intervals
+
+        :return:
+        """
+        # -- Take the icon size, but if its not given read
+        # -- the value in the ui
+        interval = inverval or self.ui.statusInterval.value()
+
+        self._timer.setInterval(interval * 1000)
+
+        # -- Store the value in the scribble settings
+        settings = scribble.get(self.environment_id)
+        settings['status_inverval'] = interval
+        settings.save()
+
+    # --------------------------------------------------------------------------
     # noinspection PyUnusedLocal
     def _getIndexFromTabName(self, name):
         """
@@ -517,6 +566,72 @@ class LaunchPanel(qute.QWidget):
         if wizard.save_directory:
             self.addPluginPath(wizard.save_directory)
 
+    # --------------------------------------------------------------------------
+    def performStatusCheck(self):
+        """
+        This will cycle through all the action list widgets and ask each
+        of them to perform a status check. These will be run in a thread, and
+        if there are any changes in state the updateTabState will be called
+
+        :return:
+        """
+        for list_widget in self._action_lists:
+            list_widget.performStatusCheck()
+
+    # --------------------------------------------------------------------------
+    def performStatusCheckOfActionType(self, action_type):
+        """
+        This will cycle through all the action list widgets and ask each
+        of them to perform a status check. These will be run in a thread, and
+        if there are any changes in state the updateTabState will be called
+
+        :return:
+        """
+
+        for list_widget in self._action_lists:
+            for idx in range(list_widget.count()):
+                item = list_widget.item(idx)
+
+                if item.identifier == action_type:
+                    list_widget.performSingleStatusCheck(item)
+
+    # --------------------------------------------------------------------------
+    def updateTabState(self, action_list):
+        """
+        Updates the tab state for the action list based on whether there
+        are any active alerts
+
+        :param action_list: ActionListWidget to check
+        :type action_list: ActionListWidget
+
+        :return:
+        """
+        # -- Assume no alerts by default, so use a null icon
+        icon_to_use = qute.QIcon()
+
+        # -- Cycle over our list widgets items
+        for idx in range(action_list.count()):
+
+            # -- Get the item, anad check if there is a status
+            if action_list.item(idx).status:
+                icon_to_use = self._alert_icon
+
+        # -- Now cycle over our tab panels so we can find the tab which
+        # -- this list widget resides under
+        for idx in range(self.ui.tabPanel.count()):
+
+            # -- Get the widget
+            widget = self.ui.tabPanel.widget(idx)
+
+            # -- We're only interested in the matching list widget
+            if widget != action_list:
+                continue
+
+            # -- Assign the icon
+            self.ui.tabPanel.setTabIcon(idx, icon_to_use)
+
+        self.tabStateUpdated.emit(action_list)
+
 
 # ------------------------------------------------------------------------------
 # noinspection PyUnresolvedReferences,PyPep8Naming
@@ -525,6 +640,9 @@ class ActionListWidget(qute.QListWidget):
     This is a QListWidget which is specifically designed to take in the
     launchpad factory and list of actions to be shown.
     """
+    # -- This signal is used to alert that changes in
+    # -- state have occured
+    alertPropogation = qute.Signal(object)
 
     # --------------------------------------------------------------------------
     def __init__(self, factory, action_list, size=75, parent=None):
@@ -533,6 +651,11 @@ class ActionListWidget(qute.QListWidget):
         # -- store the launch panel
         self._launch_panel = parent
         self._parent = parent
+
+        # -- This variable can be used to query whether this widget has any items
+        # -- within it which have alerts
+        self.status_threads = list()
+        self.status_tracker = dict()
 
         # -- Define some optimisation variables
         self._size = qute.QSize(size, size)
@@ -586,6 +709,11 @@ class ActionListWidget(qute.QListWidget):
             item.identifier = action_name
             item.setToolTip(action_name)
 
+            # -- We will store status information on the item
+            # -- which will change periodically. So assign these
+            # -- as blank values to begin with
+            item.status = None
+
             # -- Add the item
             self.addItem(item)
 
@@ -594,9 +722,9 @@ class ActionListWidget(qute.QListWidget):
             item = self.item(idx)
 
             delegate = ActionDelegate(
-                self.factory.request(item.identifier),
-                self._size,
-                self,
+                action=self.factory.request(item.identifier),
+                size=self._size,
+                parent=self,
             )
 
             delegate.needsRedraw.connect(self.viewport().update)
@@ -631,12 +759,10 @@ class ActionListWidget(qute.QListWidget):
             return
 
         action = self.factory.request(item.identifier)
-        with LogMonitor(self._parent.ui.launchLog):
-            try:
-                action.run()
+        action.run()
 
-            except:
-                print(sys.exc_info())
+        # -- Trigger a status check for this item
+        self._parent.performStatusCheckOfActionType(item.identifier)
 
     # --------------------------------------------------------------------------
     def mousePressEvent(self, event):
@@ -723,43 +849,111 @@ class ActionListWidget(qute.QListWidget):
             '%s : %s' % (self._parent.base_title, item.text())
         )
 
+    # --------------------------------------------------------------------------
+    def performStatusCheck(self):
+        """
+        This cycles over all the items in the list and will ask for the status
+        of that item. All status checks are performed in threads to ensure they
+        do not block the interface.
 
-# ------------------------------------------------------------------------------
-class LogMonitor(object):
-    """
-    This is an stdout intercepter to update a log widget with any
-    output during execution.
-    """
-    MAX_LOGS = 100
+        :return:
+        """
+
+        # -- Cycle each item, if there is a change in the status of an item
+        # -- then trigger a redraw of it
+        for idx in range(self.count()):
+
+            # -- Get the item
+            item = self.item(idx)
+            self.performSingleStatusCheck(item)
 
     # --------------------------------------------------------------------------
-    def __init__(self, widget):
-        super(LogMonitor, self).__init__()
-        self._widget = widget
-        self.logs = list()
-        self._std_out = StringIO.StringIO()
-        self._std_err = StringIO.StringIO()
+    def performSingleStatusCheck(self, item):
+        """
+        This cycles over all the items in the list and will ask for the status
+        of that item. All status checks are performed in threads to ensure they
+        do not block the interface.
+
+        :return:
+        """
+        # -- Get the plugin this item represents
+        plugin = self.factory.request(item.identifier)
+
+        # -- The status is different to what it was before so
+        # -- we need to update the view accordingly
+        index = self.indexFromItem(item)
+        delegate = self.itemDelegate(index)
+
+        # -- Create the thread which we will perform the check
+        thread = StatusCheckThread(
+            plugin=plugin,
+            item=item,
+            delegate=delegate,
+        )
+
+        # -- Once the thread is finished, we need to parse the
+        # -- result, so connect the finished signal
+        thread.finished.connect(self.updateStatusChecks)
+
+        # -- To ensure we can iterate as optimally as possible, track
+        # -- all the threads which we are generating
+        self.status_threads.append(thread)
+
+        # -- Kick the thread off
+        thread.start()
 
     # --------------------------------------------------------------------------
-    def __enter__(self):
-        sys.stdout = self
-        sys.stderr = self
-        return self
+    def updateStatusChecks(self, *args, **kwargs):
+        """
+        This function will cycle through any status threads and update the
+        item and delegate according to the status information of that thread.
 
-    # --------------------------------------------------------------------------
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        sys.stdout = sys.__stdout__
-        sys.stderr = sys.__stderr__
+        :return:
+        """
+        threads_to_remove = list()
 
-    # --------------------------------------------------------------------------
-    def write(self, message):
-        current_text = self._widget.document().toPlainText()
-        current_lines = current_text.split('\n')
-        if current_lines > self.MAX_LOGS:
-            current_lines = current_lines[len(current_lines)-self.MAX_LOGS:]
+        # -- Cycle over our active threads
+        for thread in self.status_threads:
 
-        current_lines.append(message)
-        self._widget.setText('\n'.join(current_lines))
+            # -- If the thread is not finished we leave it
+            # -- to continue
+            if not thread.isFinished():
+                continue
+
+            # -- Ensure we remove this thread once we're done with it
+            threads_to_remove.append(thread)
+
+            thread.delegate.requires_attention = thread.status
+
+            # -- Update the tooltip. If there is no alert state it can
+            # -- simply by blank
+            thread.item.setToolTip(thread.status)
+            thread.item.status = thread.status
+
+            # -- Finally we trigger a redraw of this item
+            self.update(self.indexFromItem(thread.item))
+
+            # -- If the status is different we need to emit a status
+            # -- change
+            if thread.item.identifier in self.status_tracker:
+                if thread.status != self.status_tracker[thread.item.identifier]:
+                    self.alertPropogation.emit(self)
+                    self.status_tracker[thread.item.identifier] = thread.status
+            
+            else:
+                # -- In this situation its the first time we have run for this
+                # -- item, so we only want to trigger an alert propogation if there
+                # -- is an actual message
+                self.status_tracker[thread.item.identifier] = thread.status
+                
+                if thread.status:
+                    self.alertPropogation.emit(self)
+
+        # -- Now we can clean up any complete threads. We do not do this
+        # -- during the update iteration as the lists are mutable
+        for thread in threads_to_remove:
+            if thread in self.status_threads:
+                self.status_threads.remove(thread)
 
 
 # ------------------------------------------------------------------------------
@@ -784,6 +978,11 @@ class ActionDelegate(qute.QItemDelegate):
 
     needsRedraw = qute.Signal()
 
+    # -- This pixmap will always be the same, so we only need to build it
+    # -- once and can then share it
+    _ALERT_SIZE = 25
+    _ALERT_PIXMAP = None
+
     # --------------------------------------------------------------------------
     def __init__(self, action, size, parent=None):
         super(ActionDelegate, self).__init__(parent=parent)
@@ -791,6 +990,7 @@ class ActionDelegate(qute.QItemDelegate):
         # -- Store the action, as this is used during painting
         self.action = action
         self.viability = action.viability()
+        self.requires_attention = False
 
         # -- Extract the icon, and create the pixmaps for the
         # -- icons
@@ -825,6 +1025,15 @@ class ActionDelegate(qute.QItemDelegate):
             size.height(),
             mode=qute.Qt.SmoothTransformation,
         )
+
+        # -- Build the pixmap we use to show alerts, but only build it
+        # -- if it does not already exist
+        if not ActionDelegate._ALERT_PIXMAP:
+            ActionDelegate._ALERT_PIXMAP = qute.QPixmap(_get_resource('alert.png')).scaled(
+                self._ALERT_SIZE,
+                self._ALERT_SIZE,
+                mode=qute.Qt.SmoothTransformation,
+            )
 
         # -- Now create a grayscale version of our icon
         self.icon_bw = qute.toGrayscale(self.icon_colour)
@@ -917,6 +1126,16 @@ class ActionDelegate(qute.QItemDelegate):
                     option.rect,
                 )
 
+        if self.requires_attention:
+            painter.setBrush(qute.QBrush(qute.Qt.red))
+            painter.drawPixmap(
+                option.rect.width() - self._ALERT_SIZE,
+                option.rect.y() + 10,
+                self._ALERT_SIZE,
+                self._ALERT_SIZE,
+                self._ALERT_PIXMAP,
+            )
+
         # -- Define the opacity of the painter based on the values
         # -- we have been given and draw the pixmap
         painter.setOpacity(icon_opacity)
@@ -974,6 +1193,38 @@ class ActionDelegate(qute.QItemDelegate):
 
 
 # ------------------------------------------------------------------------------
+class StatusCheckThread(qute.QThread):
+    """
+    This is the thread which calls the status of a plugin. This is to ensure
+    the status check is never blocking to the UI
+    """
+
+    # --------------------------------------------------------------------------
+    def __init__(self, plugin, item, delegate):
+        super(StatusCheckThread, self).__init__()
+        self.plugin = plugin
+        self.item = item
+        self.delegate = delegate
+        self.status = None
+
+    # --------------------------------------------------------------------------
+    def runAfterDelay(self):
+        # -- We're running code from within a plugin, so we wrap it as we
+        # -- cannot guarantee its quality
+        try:
+            if self.plugin.viability() == self.plugin.VALID:
+                self.status = self.plugin.status()
+
+        except:
+            print('Failed to get status for {}'.format(self.item.identifier))
+
+    # --------------------------------------------------------------------------
+    def run(self):
+        time.sleep(self.plugin.STATUS_DELAY)
+        self.runAfterDelay()
+
+
+# ------------------------------------------------------------------------------
 # noinspection PyUnresolvedReferences
 def launch(blocking=True, show_splash=True, *args, **kwargs):
     """
@@ -985,12 +1236,17 @@ def launch(blocking=True, show_splash=True, *args, **kwargs):
     """
     q_app = qute.qApp()
 
-    if show_splash:
+    splash_screen = None
 
+    if show_splash:
         # -- Allow the user to give their own splash screen
         splash_path = _get_resource('splash.png')
-        if isinstance(show_splash, (str, unicode)) and os.path.exists(show_splash):
-            splash_path = show_splash
+
+        try:
+            if show_splash and os.path.exists(show_splash):
+                splash_path = show_splash
+
+        except: pass
 
         splash_screen = qute.QSplashScreen(splash_path)
         splash_screen.show()
@@ -1019,11 +1275,13 @@ def launch(blocking=True, show_splash=True, *args, **kwargs):
     # -- Show the ui, and if we're blocking call the exec_
     launch_window.show()
 
-    if show_splash:
+    if show_splash and splash_screen is not None:
         splash_screen.finish(launch_window)
 
     if blocking:
         q_app.exec_()
+
+    return launch_window
 
 
 # ------------------------------------------------------------------------------

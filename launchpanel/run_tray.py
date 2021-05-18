@@ -7,7 +7,4 @@ if __name__ == '__main__':
     args, kwargs = launchpanel.utils.format_sys_argv()
 
     # -- Launch the panel window with the given arguments
-    launchpanel.launch(
-        *args,
-        **kwargs
-    )
+    launchpanel.launch_tray(*args, **kwargs)
