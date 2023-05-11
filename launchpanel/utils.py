@@ -32,7 +32,13 @@ def format_sys_argv():
 
         # -- If it has an =, its a kwarg
         if '=' in arg:
-            kwargs[arg.split('=')[0]] = arg.split('=')[1]
+            # -- we need to convert our plugin paths arg to a list
+            if arg.split('=')[0] == 'plugin_locations':
+                plugin_locations = arg.split('=')[1].split(';')
+                kwargs[arg.split('=')[0]] = plugin_locations
+
+            else:
+                kwargs[arg.split('=')[0]] = arg.split('=')[1]
 
         else:
             # -- We're dealing with an arg, so just
