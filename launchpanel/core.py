@@ -759,6 +759,11 @@ class ActionListWidget(qute.QListWidget):
             return
 
         action = self.factory.request(item.identifier)
+
+        # -- check we have not disabled the action
+        if action.status() == action.DISABLED:
+            return
+
         action.run()
 
         # -- Trigger a status check for this item
@@ -927,7 +932,7 @@ class ActionListWidget(qute.QListWidget):
 
             # -- Update the tooltip. If there is no alert state it can
             # -- simply by blank
-            thread.item.setToolTip(thread.status)
+            thread.item.setToolTip(str(thread.status))
             thread.item.status = thread.status
 
             # -- Finally we trigger a redraw of this item
@@ -1212,8 +1217,12 @@ class StatusCheckThread(qute.QThread):
         # -- We're running code from within a plugin, so we wrap it as we
         # -- cannot guarantee its quality
         try:
-            if self.plugin.viability() == self.plugin.VALID:
-                self.status = self.plugin.status()
+            # -- skip any INVALID plugins
+            if not self.plugin.viability() == self.plugin.INVALID:
+
+                # -- only update the tooltip if we have a Status to report
+                if self.plugin.status():
+                    self.status = self.plugin.status()
 
         except:
             print('Failed to get status for {}'.format(self.item.identifier))

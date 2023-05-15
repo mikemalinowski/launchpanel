@@ -42,7 +42,7 @@ class LaunchPanelTray(qute.MemorableTimedProcessorTray):
             item = action_list.item(idx)
             try:
                 if item.status:
-                    self.show_message(item.status)
+                    self.show_message(str(item.status))
             except:
                 self.show_message(traceback.format_exc())
 
