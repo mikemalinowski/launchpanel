@@ -299,7 +299,7 @@ class LaunchPanel(qute.QWidget):
             widget,
             'All',
         )
-
+        
         # -- We now need to cycle over all the grouped identifiers
         # -- and create a ListWidget containing them.
         groups = self.factory.grouped_identifiers(
@@ -953,7 +953,7 @@ class ActionListWidget(qute.QListWidget):
 
             # -- Update the tooltip. If there is no alert state it can
             # -- simply by blank
-            thread.item.setToolTip(str(thread.status))
+            thread.item.setToolTip(str(thread.status or thread.plugin.Description))
             thread.item.status = thread.status
 
             # -- Finally we trigger a redraw of this item
@@ -1124,8 +1124,8 @@ class ActionDelegate(qute.QItemDelegate):
 
         # -- If we're hovering lets increase the opacity and use
         # -- the colour icon
-        disabled =  launchpad.PluginStates.DISABLED in self.state
-        print(disabled)
+        disabled = launchpad.PluginStates.DISABLED in self.state
+
         if option.state & qute.QStyle.State_MouseOver:
             hovering = True
             icon_opacity = 1
