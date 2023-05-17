@@ -24,7 +24,7 @@ import functools
 import collections
 
 from . import create
-from . import constants
+from . import constants as c
 
 
 # ------------------------------------------------------------------------------
@@ -94,7 +94,7 @@ class LaunchPanel(qute.QWidget):
         # -- If we're on windows we need to tell windows that python is actually just
         # -- hosting an application and is not the application itself.
         if sys.platform == 'win32':
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(constants.APP_ID)
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(c.APP_ID)
 
         # -- Create a default layout
         self.setLayout(qute.slimify(qute.QVBoxLayout()))
@@ -142,6 +142,7 @@ class LaunchPanel(qute.QWidget):
         # -- is
         self.ui.iconSize.setValue(settings.get('icon_size', 50))
         self.ui.statusInterval.setValue(settings.get('status_inverval', 1800))
+        self.ui.showBeta.setChecked(settings.get('show_beta', False))
 
         # -- Combine any paths we're given with any stored paths
         # -- and then ensure we remove any duplicates
@@ -188,6 +189,7 @@ class LaunchPanel(qute.QWidget):
         self.ui.removePluginPath.clicked.connect(self.removePluginPath)
         self.ui.tabModeCombo.currentIndexChanged.connect(self.setTabMode)
         self.ui.statusInterval.valueChanged.connect(self.updateStatusInterval)
+        self.ui.showBeta.stateChanged.connect(self.toggleBetaPlugins)
 
         # -- Begin with a status check
         self.performStatusCheck()
@@ -285,6 +287,7 @@ class LaunchPanel(qute.QWidget):
         widget = ActionListWidget(
             factory=self.factory,
             action_list=None,
+            show_beta=self.ui.showBeta.isChecked(),
             size=settings.get('icon_size', 75),
             parent=self,
         )
@@ -299,7 +302,10 @@ class LaunchPanel(qute.QWidget):
 
         # -- We now need to cycle over all the grouped identifiers
         # -- and create a ListWidget containing them.
-        groups = self.factory.grouped_identifiers()
+        groups = self.factory.grouped_identifiers(
+            show_beta=self.ui.showBeta.isChecked(),
+        )
+
         group_names = reversed(sorted(list(groups.keys())))
 
         for group_name in group_names:
@@ -312,6 +318,7 @@ class LaunchPanel(qute.QWidget):
             widget = ActionListWidget(
                 factory=self.factory,
                 action_list=groups[group_name],
+                show_beta=self.ui.showBeta.isChecked(),
                 size=settings.get('icon_size', 75),
                 parent=self,
             )
@@ -352,6 +359,7 @@ class LaunchPanel(qute.QWidget):
         widget = ActionListWidget(
             factory=self.factory,
             action_list=user_picked_actions,
+            show_beta=self.ui.showBeta.isChecked(),
             size=settings.get('icon_size', 75),
             parent=self,
         )
@@ -496,6 +504,16 @@ class LaunchPanel(qute.QWidget):
 
         # -- Cycle our tabs, and attempt to match it via name
         self._setTabByName(tab_name)
+
+    # ----------------------------------------------------------------------------------
+    def toggleBetaPlugins(self):
+
+        settings = scribble.get(self.environment_id)
+        settings['show_beta'] = self.ui.showBeta.isChecked()
+        settings.save()
+
+        self.populate()
+        self.populateUserActions()
 
     # --------------------------------------------------------------------------
     def resizeIcons(self, icon_size=None):
@@ -645,12 +663,13 @@ class ActionListWidget(qute.QListWidget):
     alertPropogation = qute.Signal(object)
 
     # --------------------------------------------------------------------------
-    def __init__(self, factory, action_list, size=75, parent=None):
+    def __init__(self, factory, action_list, show_beta=False, size=75, parent=None):
         super(ActionListWidget, self).__init__(parent=parent)
 
         # -- store the launch panel
         self._launch_panel = parent
         self._parent = parent
+        self._show_beta = show_beta
 
         # -- This variable can be used to query whether this widget has any items
         # -- within it which have alerts
@@ -671,7 +690,7 @@ class ActionListWidget(qute.QListWidget):
 
         # -- Store our factory and list of actions
         self.factory = factory
-        self.action_list = action_list or factory.identifiers()
+        self.action_list = action_list or factory.identifiers(show_beta=show_beta)
 
         # -- Populate the panel
         self.populate()
@@ -696,7 +715,9 @@ class ActionListWidget(qute.QListWidget):
         in the action list during initialisation.
         """
         self.clear()
-        valid_actions = self.factory.identifiers()
+        valid_actions = self.factory.identifiers(
+            show_beta=self._show_beta
+        )
 
         # -- Start by adding all the required items
         for idx, action_name in enumerate(self.action_list):
@@ -761,7 +782,7 @@ class ActionListWidget(qute.QListWidget):
         action = self.factory.request(item.identifier)
 
         # -- check we have not disabled the action
-        if action.status() == action.DISABLED:
+        if launchpad.PluginStates.DISABLED in action.state():
             return
 
         action.run()
@@ -994,7 +1015,7 @@ class ActionDelegate(qute.QItemDelegate):
 
         # -- Store the action, as this is used during painting
         self.action = action
-        self.viability = action.viability()
+        self.state = action.state()
         self.requires_attention = False
 
         # -- Extract the icon, and create the pixmaps for the
@@ -1103,8 +1124,8 @@ class ActionDelegate(qute.QItemDelegate):
 
         # -- If we're hovering lets increase the opacity and use
         # -- the colour icon
-        disabled = self.viability == launchpad.LaunchAction.DISABLED
-
+        disabled =  launchpad.PluginStates.DISABLED in self.state
+        print(disabled)
         if option.state & qute.QStyle.State_MouseOver:
             hovering = True
             icon_opacity = 1
@@ -1122,7 +1143,7 @@ class ActionDelegate(qute.QItemDelegate):
                 option.rect.y() + option.rect.height(),
             )
 
-            if self.highlight:
+            if self.highlight and not disabled:
                 gradient.setColorAt(0, self.highlight)
                 gradient.setColorAt(1, qute.QColor(0, 0, 0, a=0))
                 painter.setBrush(gradient)
@@ -1218,14 +1239,15 @@ class StatusCheckThread(qute.QThread):
         # -- cannot guarantee its quality
         try:
             # -- skip any INVALID plugins
-            if not self.plugin.viability() == self.plugin.INVALID:
+            if self.plugin.state() == launchpad.PluginStates.INVALID:
+                return
 
-                # -- only update the tooltip if we have a Status to report
-                if self.plugin.status():
-                    self.status = self.plugin.status()
+            # -- only update the tooltip if we have a Status to report
+            self.status = self.plugin.status_message() or None
 
         except:
             print('Failed to get status for {}'.format(self.item.identifier))
+            print(sys.exc_info())
 
     # --------------------------------------------------------------------------
     def run(self):
@@ -1248,17 +1270,15 @@ def launch(blocking=True, show_splash=True, *args, **kwargs):
     splash_screen = None
 
     if show_splash:
-        # -- Allow the user to give their own splash screen
-        splash_path = _get_resource('splash.png')
-
         try:
             if show_splash and os.path.exists(show_splash):
                 splash_path = show_splash
 
-        except: pass
+                splash_screen = qute.QSplashScreen(splash_path)
+                splash_screen.show()
 
-        splash_screen = qute.QSplashScreen(splash_path)
-        splash_screen.show()
+        except:
+            pass
 
     # -- get any passed args that we can use
     title = kwargs.pop('title', '')

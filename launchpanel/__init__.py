@@ -62,7 +62,7 @@ This module has the following dependencies:
 
 Launchpad has been tested under Python 2.7 and Python 3.7 on Windows and Ubuntu.
 """
-__version__ = "1.1.0"
+__version__ = "2.0.1"
 
 from .core import launch
 from . import utils

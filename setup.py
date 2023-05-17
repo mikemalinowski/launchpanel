@@ -11,7 +11,7 @@ else:
 
 setuptools.setup(
     name='launchpanel',
-    version='1.1.0',
+    version='2.0.1',
     author='Mike Malinowski',
     author_email='mike.malinowski@outlook.com',
     description=short_description,
