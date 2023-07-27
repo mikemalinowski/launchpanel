@@ -11,8 +11,8 @@ class GenericMaya(launchpad.LaunchAction):
     on applications the user has installed. This means you do not have
     to create new plugins for every version of an application
     """
-    Name = 'Maya'
-    Description = 'Launches Maya'
+    Name = 'Maya __VERSION__'
+    Description = 'Launches Maya __VERSION__'
     Groups = ['Applications']
 
     # -- Private property which can be altered if you have maya
@@ -32,10 +32,10 @@ class GenericMaya(launchpad.LaunchAction):
         )
 
     @classmethod
-    def viability(cls):
+    def state(cls):
         if os.path.exists(cls.Path):
-            return cls.VALID
-        return cls.INVALID
+            return launchpad.PluginStates.VALID
+        return launchpad.PluginStates.INVALID
 
 
 # ------------------------------------------------------------------------------
@@ -51,7 +51,14 @@ for version_number in range(16, 30):
         cls_name,
         (GenericMaya,),
         {
-            'Name': 'Maya20%s' % version_number,
+            'Name': GenericMaya.Name.replace(
+                '__VERSION__',
+                '20%s' % version_number,
+            ),
+            'Description': GenericMaya.Description.replace(
+                '__VERSION__',
+                '20%s' % version_number,
+            ),
             'Path': GenericMaya.Path.replace(
                 '__VERSION__',
                 '20%s' % version_number,
@@ -60,7 +67,7 @@ for version_number in range(16, 30):
     )
 
     # noinspection PyUnresolvedReferences
-    if new_cls.viability():
+    if new_cls.state():
         setattr(
             this_module,
             cls_name,
