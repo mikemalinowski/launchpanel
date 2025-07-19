@@ -18,8 +18,8 @@ launchpanel.launch()
 ```
 
 This code will work in both standalone python as well as supported applications
-such as Max, Maya and Motion Builder (see details of qute for full list of
-application support https://github.com/mikemalinowski/qute)
+such as Max, Maya and Motion Builder (see details of qtility for full list of
+application support https://github.com/mikemalinowski/qtility)
 
 
 # Environments
@@ -54,7 +54,7 @@ bespoke set of plugins displayed for each one.
 This module has the following dependencies:
 
     * launchpad
-    * qute
+    * qtility
     * scribble (pip install scribble)
 
 
@@ -62,8 +62,7 @@ This module has the following dependencies:
 
 Launchpad has been tested under Python 2.7 and Python 3.7 on Windows and Ubuntu.
 """
-__version__ = "2.0.1"
+__version__ = "3.0.1"
 
 from .core import launch
 from . import utils
-from .tray import launch_tray

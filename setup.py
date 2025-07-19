@@ -11,7 +11,7 @@ else:
 
 setuptools.setup(
     name='launchpanel',
-    version='2.0.1',
+    version='3.0.1',
     author='Mike Malinowski',
     author_email='mike.malinowski@outlook.com',
     description=short_description,
@@ -27,6 +27,6 @@ setuptools.setup(
     package_data={
         '': ['_resources/*.png', '_resources/*.ui', '_resources/*.qss'],
     },
-    install_requires=['qute', 'scribble', 'factories', 'launchpad'],
+    install_requires=['qtility', 'scribble', 'factories', 'launchpad'],
     keywords="launch launchpad pad action actions launchpanel panel",
 )

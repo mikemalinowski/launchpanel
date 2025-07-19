@@ -9,44 +9,31 @@ define tab orientation, icon size and plugin locations.
 This module has the following dependencies:
 
     * launchpad
-    * qute
+    * qtility
     * scribble (pip install scribble)
 
 """
 import os
 import sys
-import qute
 import time
 import ctypes
+import qtility
 import scribble
 import launchpad
 import functools
 import collections
 
+from Qt import QtCore, QtGui, QtWidgets
+
 from . import create
+from . import styling
+from . import resources
 from . import constants as c
 
 
 # ------------------------------------------------------------------------------
-def _get_resource(name):
-    """
-    This is a convinience function to get files from the resources directory
-    and correct handle the slashing.
-
-    :param name: Name of file to pull from the resource directory
-
-    :return: Absolute path to the resource requested.
-    """
-    return os.path.join(
-        os.path.dirname(__file__),
-        '_resources',
-        name,
-    ).replace('\\', '/')
-
-
-# ------------------------------------------------------------------------------
 # noinspection PyUnresolvedReferences,PyPep8Naming
-class LaunchPanel(qute.QWidget):
+class LaunchPanel(QtWidgets.QWidget):
     """
     This is the main Ui widget which makes up the LaunchPanel Ui.
     """
@@ -55,19 +42,13 @@ class LaunchPanel(qute.QWidget):
     TAB_SIDE = 1
     TAB_TOP = 2
 
-    # -- This is a set of styling keywords which act as
-    # -- replacements and handle relative pathing
-    _STYLE_KWARGS = dict(
-        _TAB_BG_=_get_resource('bg.png'),
-    )
-
-    tabStateUpdated = qute.Signal(object)
+    tabStateUpdated = QtCore.Signal(object)
 
     # --------------------------------------------------------------------------
     def __init__(self,
                  plugin_locations=None,
                  environment_id='launchpanel',
-                 style='space',
+                 # style='space',
                  title='Launch Panel',
                  style_overrides=None,
                  parent=None):
@@ -75,21 +56,16 @@ class LaunchPanel(qute.QWidget):
 
         # -- Store our scribble id
         self.environment_id = environment_id
-        self.qute_style = style
 
         # -- Store the base launch panel title
         self.base_title = title
 
-        # -- Define our styling data
-        self.styling_data = self._STYLE_KWARGS.copy()
-        self.styling_data.update(style_overrides or dict())
-
         # -- Define our alert icon
-        self._alert_icon = qute.QIcon(qute.QPixmap(_get_resource('alert.png')))
+        self._alert_icon = QtGui.QIcon(QtGui.QPixmap(resources.get('alert.png')))
 
         # -- Set the window properties
         self.setWindowTitle('Launch Panel')
-        self.setWindowIcon(qute.QIcon(_get_resource('launch.png')))
+        self.setWindowIcon(QtGui.QIcon(resources.get('launch.png')))
 
         # -- If we're on windows we need to tell windows that python is actually just
         # -- hosting an application and is not the application itself.
@@ -97,31 +73,23 @@ class LaunchPanel(qute.QWidget):
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(c.APP_ID)
 
         # -- Create a default layout
-        self.setLayout(qute.slimify(qute.QVBoxLayout()))
+        self.setLayout(qtility.layouts.slimify(QtWidgets.QVBoxLayout()))
         
         # -- Load in the ui
-        self.ui = qute.loadUi(_get_resource('launchpad.ui'))
+        self.ui = qtility.designer.load(resources.get('launchpad.ui'))
         self.layout().addWidget(self.ui)
 
         # -- Assign icons
         self.ui.tabPanel.setTabIcon(
             0,
-            qute.QIcon(qute.QPixmap(_get_resource('options.png'))),
+            QtGui.QIcon(QtGui.QPixmap(resources.get('options.png'))),
         )
 
-        # -- Apply a style to the window. We take our default
-        # -- requested style from Qute as well as our own style. We
-        # -- then pass any keyword argument replacements in
-        styling_data = self._STYLE_KWARGS.copy()
-        styling_data.update(style_overrides or dict())
-
-        qute.applyStyle(
+        qtility.styling.apply(
             [
-                self.qute_style,
-                _get_resource('style.qss'),
+                styling.get_style(),
             ],
             self,
-            **self.styling_data
         )
 
         # -- Set the window geometry if we have the settings
@@ -175,7 +143,7 @@ class LaunchPanel(qute.QWidget):
         # -- Define the timer we will use to perform status
         # -- check updates. Default to 30 minutes if no settings
         # -- are present
-        self._timer = qute.QTimer(self)
+        self._timer = QtCore.QTimer(self)
         self._timer.setSingleShot(False)
         self._timer.setInterval(settings.get('status_inverval', 1800) * 1000)
         self._timer.timeout.connect(self.performStatusCheck)
@@ -229,30 +197,26 @@ class LaunchPanel(qute.QWidget):
         # -- if we're in auto mode and the window is wide, we
         # -- set the orientation of the tab bar to the top
         if self.tabMode == self.TAB_TOP or should_be_top:
-            self.ui.tabPanel.setTabPosition(self.ui.tabPanel.North)
-            qute.applyStyle(
+            self.ui.tabPanel.setTabPosition(QtWidgets.QTabWidget.North)
+            qtility.styling.apply(
                 [
-                    self.qute_style,
-                    _get_resource('style.qss'),
-                    _get_resource('north.qss'),
+                    styling.get_style(),
+                    resources.get('north.qss'),
                 ],
                 self.ui.tabPanel,
-                **self.styling_data
             )
 
         # -- To be here we're expected to have the tab on the side, or we're
         # -- in auto mode and the window is long, so we switch to a side
         # -- tab
         else:
-            self.ui.tabPanel.setTabPosition(self.ui.tabPanel.West)
-            qute.applyStyle(
+            self.ui.tabPanel.setTabPosition(QtWidgets.QTabWidget.West)
+            qtility.styling.apply(
                 [
-                    self.qute_style,
-                    _get_resource('style.qss'),
-                    _get_resource('west.qss'),
+                    styling.get_style(),
+                    resources.get('west.qss'),
                 ],
                 self.ui.tabPanel,
-                **self.styling_data
             )
 
     # --------------------------------------------------------------------------
@@ -299,7 +263,7 @@ class LaunchPanel(qute.QWidget):
             widget,
             'All',
         )
-        
+
         # -- We now need to cycle over all the grouped identifiers
         # -- and create a ListWidget containing them.
         groups = self.factory.grouped_identifiers(
@@ -431,7 +395,7 @@ class LaunchPanel(qute.QWidget):
         """
         # -- If we dont have a path, prompt the user for one
         if not path:
-            path = qute.QFileDialog.getExistingDirectory(self)
+            path = QtWidgets.QFileDialog.getExistingDirectory(self)
 
             if not path:
                 return
@@ -532,7 +496,7 @@ class LaunchPanel(qute.QWidget):
         # -- Cycle over all our action lists and propogate the icon
         # -- size change
         for action_list in self._action_lists:
-            action_list.setIconSize(qute.QSize(icon_size, icon_size))
+            action_list.setIconSize(QtCore.QSize(icon_size, icon_size))
 
         # -- Store the value in the scribble settings
         settings = scribble.get(self.environment_id)
@@ -625,7 +589,7 @@ class LaunchPanel(qute.QWidget):
         :return:
         """
         # -- Assume no alerts by default, so use a null icon
-        icon_to_use = qute.QIcon()
+        icon_to_use = QtGui.QIcon()
 
         # -- Cycle over our list widgets items
         for idx in range(action_list.count()):
@@ -653,14 +617,14 @@ class LaunchPanel(qute.QWidget):
 
 # ------------------------------------------------------------------------------
 # noinspection PyUnresolvedReferences,PyPep8Naming
-class ActionListWidget(qute.QListWidget):
+class ActionListWidget(QtWidgets.QListWidget):
     """
     This is a QListWidget which is specifically designed to take in the
     launchpad factory and list of actions to be shown.
     """
     # -- This signal is used to alert that changes in
     # -- state have occured
-    alertPropogation = qute.Signal(object)
+    alertPropogation = QtCore.Signal(object)
 
     # --------------------------------------------------------------------------
     def __init__(self, factory, action_list, show_beta=False, size=75, parent=None):
@@ -677,16 +641,16 @@ class ActionListWidget(qute.QListWidget):
         self.status_tracker = dict()
 
         # -- Define some optimisation variables
-        self._size = qute.QSize(size, size)
+        self._size = QtCore.QSize(size, size)
 
         # -- Define our visual parameters on the widget
         self.setSpacing(10)
         self.setIconSize(self._size)
-        self.setResizeMode(self.Adjust)
+        self.setResizeMode(QtWidgets.QListWidget.Adjust)
         self.setSortingEnabled(False)
         self.setMouseTracking(True)
-        self.setSelectionMode(self.NoSelection)
-        self.setContextMenuPolicy(qute.Qt.DefaultContextMenu)
+        self.setSelectionMode(QtWidgets.QListWidget.NoSelection)
+        self.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
 
         # -- Store our factory and list of actions
         self.factory = factory
@@ -701,7 +665,7 @@ class ActionListWidget(qute.QListWidget):
                 background-position: top right;
                 background-origin: content;
                 background-repeat: repeat-xy;
-            """ % _get_resource('bg.png')
+            """ % resources.get('bg.png')
         )
 
         # -- Hook up the event to allow the window title to show the
@@ -726,7 +690,7 @@ class ActionListWidget(qute.QListWidget):
                 continue
 
             # -- Create the item
-            item = qute.QListWidgetItem(action_name)
+            item = QtWidgets.QListWidgetItem(action_name)
             item.identifier = action_name
             item.setToolTip(action_name)
 
@@ -792,7 +756,7 @@ class ActionListWidget(qute.QListWidget):
 
     # --------------------------------------------------------------------------
     def mousePressEvent(self, event):
-        if event.button() == qute.Qt.LeftButton:
+        if event.button() == QtCore.Qt.LeftButton:
             self.run(self.itemAt(event.pos()))
 
     # --------------------------------------------------------------------------
@@ -833,7 +797,7 @@ class ActionListWidget(qute.QListWidget):
             )
 
         # -- Pop up the menu
-        menu = qute.menuFromDictionary(menu_dict, parent=self)
+        menu = qtility.menus.create(menu_dict, parent=self)
         menu.popup(event.globalPos())
 
     # --------------------------------------------------------------------------
@@ -984,7 +948,7 @@ class ActionListWidget(qute.QListWidget):
 
 # ------------------------------------------------------------------------------
 # noinspection PyUnresolvedReferences,PyPep8Naming
-class ActionDelegate(qute.QItemDelegate):
+class ActionDelegate(QtWidgets.QItemDelegate):
     """
     This is responsible for painting the delegate. We use a delegate to
     allow us to do color/grayscale switching etc.
@@ -993,16 +957,16 @@ class ActionDelegate(qute.QItemDelegate):
     # -- to be defined once regardless of how many instances we
     # -- create.
     BACKGROUND_COLOUR = [255, 255, 255]
-    LABEL_BACKGROUND = qute.QColor(*[0, 0, 0], a=200)
-    BLACK_PEN = qute.QPen(qute.Qt.black)
-    WHITE_PEN = qute.QPen(qute.Qt.white)
-    DESC_PEN = qute.QPen(qute.QColor(255, 255, 255, a=60))
-    DESC_ACTIVE_PEN = qute.QPen(qute.QColor(255, 255, 255, a=100))
-    TRANSPARENT_BRUSH = qute.QBrush(qute.Qt.transparent)
+    LABEL_BACKGROUND = QtGui.QColor(*[0, 0, 0], a=200)
+    BLACK_PEN = QtGui.QPen(QtCore.Qt.black)
+    WHITE_PEN = QtGui.QPen(QtCore.Qt.white)
+    DESC_PEN = QtGui.QPen(QtGui.QColor(255, 255, 255, a=60))
+    DESC_ACTIVE_PEN = QtGui.QPen(QtGui.QColor(255, 255, 255, a=100))
+    TRANSPARENT_BRUSH = QtGui.QBrush(QtCore.Qt.transparent)
 
-    _DEFAULT_ICON = _get_resource('launch.png')
+    _DEFAULT_ICON = resources.get('launch.png')
 
-    needsRedraw = qute.Signal()
+    needsRedraw = QtCore.Signal()
 
     # -- This pixmap will always be the same, so we only need to build it
     # -- once and can then share it
@@ -1046,31 +1010,31 @@ class ActionDelegate(qute.QItemDelegate):
             icon_path = self.action.Icon
 
         # -- Create a scaled version of our icon
-        self.icon_colour = qute.QPixmap(icon_path).scaled(
+        self.icon_colour = QtGui.QPixmap(icon_path).scaled(
             size.height(),
             size.height(),
-            mode=qute.Qt.SmoothTransformation,
+            mode=QtCore.Qt.SmoothTransformation,
         )
 
         # -- Build the pixmap we use to show alerts, but only build it
         # -- if it does not already exist
         if not ActionDelegate._ALERT_PIXMAP:
-            ActionDelegate._ALERT_PIXMAP = qute.QPixmap(_get_resource('alert.png')).scaled(
+            ActionDelegate._ALERT_PIXMAP = QtGui.QPixmap(resources.get('alert.png')).scaled(
                 self._ALERT_SIZE,
                 self._ALERT_SIZE,
-                mode=qute.Qt.SmoothTransformation,
+                mode=QtCore.Qt.SmoothTransformation,
             )
 
         # -- Now create a grayscale version of our icon
-        self.icon_bw = qute.toGrayscale(self.icon_colour)
+        self.icon_bw = qtility.pixmaps.grayscaled(self.icon_colour)
 
         # -- Generate the painter polygon
-        self.polygon = qute.QPolygonF()
-        self.polygon.append(qute.QPoint(0, size.height() * 0.25))
-        self.polygon.append(qute.QPoint(size.width() * 0.25, 0))
-        self.polygon.append(qute.QPoint(size.width(), 0))
-        self.polygon.append(qute.QPoint(size.width(), size.height()))
-        self.polygon.append(qute.QPoint(0, size.height()))
+        self.polygon = QtGui.QPolygonF()
+        self.polygon.append(QtCore.QPoint(0, size.height() * 0.25))
+        self.polygon.append(QtCore.QPoint(size.width() * 0.25, 0))
+        self.polygon.append(QtCore.QPoint(size.width(), 0))
+        self.polygon.append(QtCore.QPoint(size.width(), size.height()))
+        self.polygon.append(QtCore.QPoint(0, size.height()))
 
         # -- Store this size value so it can be returned as part
         # -- of the size hint
@@ -1079,7 +1043,7 @@ class ActionDelegate(qute.QItemDelegate):
         # -- We want to load the image as a q-image to allow us to
         # -- inspect the general colour of the icon for use as a highlighting
         # -- mechanism.
-        image = qute.QImage(icon_path)
+        image = QtGui.QImage(icon_path)
         counter = 0
         r, g, b = [], [], []
 
@@ -1087,7 +1051,7 @@ class ActionDelegate(qute.QItemDelegate):
         for x in range(0, int(image.width() * 0.1)):
             for y in range(0, int(image.height() * 0.1)):
                 counter += 1
-                colors = qute.QColor(image.pixel(x * 10, y * 10)).getRgbF()
+                colors = QtGui.QColor(image.pixel(x * 10, y * 10)).getRgbF()
 
                 r.append(colors[0])
                 g.append(colors[1])
@@ -1096,7 +1060,7 @@ class ActionDelegate(qute.QItemDelegate):
         # -- Providing we have a valid image, we set the highlight
         # -- colour
         if len(r):
-            self.highlight = qute.QColor(
+            self.highlight = QtGui.QColor(
                 (sum(r) / len(r)) * 255,
                 (sum(g) / len(g)) * 255,
                 (sum(b) / len(b)) * 255,
@@ -1126,7 +1090,7 @@ class ActionDelegate(qute.QItemDelegate):
         # -- the colour icon
         disabled = launchpad.PluginStates.DISABLED in self.state
 
-        if option.state & qute.QStyle.State_MouseOver:
+        if option.state & QtWidgets.QStyle.State_MouseOver:
             hovering = True
             icon_opacity = 1
             icon_px = self.icon_colour
@@ -1136,7 +1100,7 @@ class ActionDelegate(qute.QItemDelegate):
             icon_px = self.icon_bw
 
         if hovering:
-            gradient = qute.QLinearGradient(
+            gradient = QtGui.QLinearGradient(
                 0,
                 option.rect.y(),
                 0,
@@ -1145,15 +1109,15 @@ class ActionDelegate(qute.QItemDelegate):
 
             if self.highlight and not disabled:
                 gradient.setColorAt(0, self.highlight)
-                gradient.setColorAt(1, qute.QColor(0, 0, 0, a=0))
+                gradient.setColorAt(1, QtGui.QColor(0, 0, 0, a=0))
                 painter.setBrush(gradient)
-                painter.setPen(qute.QColor(0, 0, 0, a=0))
+                painter.setPen(QtGui.QColor(0, 0, 0, a=0))
                 painter.drawRect(
                     option.rect,
                 )
 
         if self.requires_attention:
-            painter.setBrush(qute.QBrush(qute.Qt.red))
+            painter.setBrush(QtGui.QBrush(QtCore.Qt.red))
             painter.drawPixmap(
                 option.rect.width() - self._ALERT_SIZE,
                 option.rect.y() + 10,
@@ -1176,18 +1140,18 @@ class ActionDelegate(qute.QItemDelegate):
         # -- Now we restore the opacity back to full
         painter.setOpacity(1)
         font_size = max(8, (int(self.size.height() * 0.15)))
-        painter.setFont(qute.QFont("ariel", font_size))
-        text_rect = qute.QRect(
+        painter.setFont(QtGui.QFont("ariel", font_size))
+        text_rect = QtCore.QRect(
             option.rect.x() + self.size.width() + (self.size.width() * 0.2),
             option.rect.y() + (self.size.height() * 0.1),
             option.rect.width(),
             option.rect.height() * 0.5,
         )
         # -- Draw the actual text
-        painter.setPen(qute.QPen(qute.Qt.white))
+        painter.setPen(QtGui.QPen(QtCore.Qt.white))
         painter.drawText(
             text_rect,
-            qute.Qt.AlignLeft | qute.Qt.AlignVCenter,
+            QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter,
             self.action.Name,
         )
 
@@ -1197,7 +1161,7 @@ class ActionDelegate(qute.QItemDelegate):
             painter.setPen(self.DESC_ACTIVE_PEN)
 
         y_offset = 50
-        desc_rect = qute.QRect(
+        desc_rect = QtCore.QRect(
             option.rect.x() + self.size.width() + (self.size.width() * 0.4),
             option.rect.y() + (option.rect.height() * 0.5),
             option.rect.width(),
@@ -1206,7 +1170,7 @@ class ActionDelegate(qute.QItemDelegate):
         # -- Draw the actual text
         painter.drawText(
             desc_rect,
-            qute.Qt.AlignLeft | qute.Qt.AlignVCenter,
+            QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter,
             self.action.Description,
         )
 
@@ -1219,7 +1183,7 @@ class ActionDelegate(qute.QItemDelegate):
 
 
 # ------------------------------------------------------------------------------
-class StatusCheckThread(qute.QThread):
+class StatusCheckThread(QtCore.QThread):
     """
     This is the thread which calls the status of a plugin. This is to ensure
     the status check is never blocking to the UI
@@ -1265,7 +1229,7 @@ def launch(blocking=True, show_splash=True, *args, **kwargs):
     :param kwargs:
     :return:
     """
-    q_app = qute.qApp()
+    q_app = qtility.app.get()
 
     splash_screen = None
 
@@ -1274,7 +1238,7 @@ def launch(blocking=True, show_splash=True, *args, **kwargs):
             if show_splash and os.path.exists(show_splash):
                 splash_path = show_splash
 
-                splash_screen = qute.QSplashScreen(splash_path)
+                splash_screen = QtWidgets.QSplashScreen(splash_path)
                 splash_screen.show()
 
         except:
@@ -1286,7 +1250,7 @@ def launch(blocking=True, show_splash=True, *args, **kwargs):
 
     # -- Create a window and embed our widget into it
     launch_widget = LaunchPanel(*args, **kwargs)
-    launch_window = qute.QMainWindow(parent=qute.mainWindow())
+    launch_window = QtWidgets.QMainWindow(parent=qtility.windows.application())
 
     # -- Update the geometry of the window to the last stored
     # -- geometry
@@ -1298,7 +1262,7 @@ def launch(blocking=True, show_splash=True, *args, **kwargs):
         title or 'Launch Panel'
     )
     launch_window.setWindowIcon(
-        qute.QIcon(icon or _get_resource('launch.png'))
+        QtGui.QIcon(icon or resources.get('launch.png'))
     )
 
     # -- Show the ui, and if we're blocking call the exec_
@@ -1311,8 +1275,3 @@ def launch(blocking=True, show_splash=True, *args, **kwargs):
         q_app.exec_()
 
     return launch_window
-
-
-# ------------------------------------------------------------------------------
-if __name__ == '__main__':
-    launch()

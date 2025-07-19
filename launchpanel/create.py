@@ -4,8 +4,10 @@ their own plugins without coding.
 """
 import os
 import sys
-import qute
+import qtility
 import launchpad
+
+from Qt import QtCore, QtWidgets, QtGui
 
 
 # ------------------------------------------------------------------------------
@@ -56,7 +58,7 @@ def _get_resource(name):
 
 # ------------------------------------------------------------------------------
 # noinspection PyUnresolvedReferences
-class ClassWizard(qute.QWizard):
+class ClassWizard(QtWidgets.QWizard):
     """
     This is the main wizard class which guides the user through the 
     plugin creation. 
@@ -66,17 +68,17 @@ class ClassWizard(qute.QWizard):
     def __init__(self, parent=None):
         super(ClassWizard, self).__init__(parent)
 
-        self.setWizardStyle(self.ModernStyle)
+        self.setWizardStyle(QtWidgets.QWizard.ModernStyle)
         self.setWindowTitle('Action Wizard')
 
         self.setPixmap(
-            self.WatermarkPixmap,
-            _get_resource('wizard.png'),
+            QtWidgets.QWizard.WatermarkPixmap,
+            QtGui.QPixmap(_get_resource('wizard.png')),
         )
 
-        qute.applyStyle(
+        qtility.styling.apply(
             [
-                'space',
+                _get_resource('space.qss'),
                 _get_resource('wizard.qss'),
             ],
             self,
@@ -152,13 +154,13 @@ class ClassWizard(qute.QWizard):
 
 # ------------------------------------------------------------------------------
 # noinspection PyUnresolvedReferences
-class BasePage(qute.QWizardPage):
+class BasePage(QtWidgets.QWizardPage):
 
     # --------------------------------------------------------------------------
     def __init__(self, parent=None):
         super(BasePage, self).__init__(parent=parent)
 
-        self.setLayout(qute.slimify(qute.QVBoxLayout()))
+        self.setLayout(qtility.layouts.slimify(QtWidgets.QVBoxLayout()))
 
 
 # ------------------------------------------------------------------------------
@@ -170,7 +172,7 @@ class IntroductionPage(BasePage):
         super(IntroductionPage, self).__init__(parent)
 
         # -- Load in our ui element
-        self.ui = qute.loadUi(_get_resource('wizard_page_one.ui'))
+        self.ui = qtility.designer.load(_get_resource('wizard_page_one.ui'))
         self.layout().addWidget(self.ui)
 
         # -- Register the field
@@ -186,7 +188,7 @@ class DetailsPage(BasePage):
         super(DetailsPage, self).__init__(parent)
 
         # -- Load in our ui element
-        self.ui = qute.loadUi(_get_resource('wizard_page_two.ui'))
+        self.ui = qtility.designer.load(_get_resource('wizard_page_two.ui'))
         self.layout().addWidget(self.ui)
 
         # -- Register the field
@@ -206,7 +208,7 @@ class GroupsPage(BasePage):
         super(GroupsPage, self).__init__(parent)
 
         # -- Load in our ui element
-        self.ui = qute.loadUi(_get_resource('wizard_page_three.ui'))
+        self.ui = qtility.designer.load(_get_resource('wizard_page_three.ui'))
         self.layout().addWidget(self.ui)
 
         # -- Register the field
@@ -232,7 +234,7 @@ class CommandPage(BasePage):
         super(CommandPage, self).__init__(parent)
 
         # -- Load in our ui element
-        self.ui = qute.loadUi(_get_resource('wizard_page_four.ui'))
+        self.ui = qtility.designer.load(_get_resource('wizard_page_four.ui'))
         self.layout().addWidget(self.ui)
 
         # -- Register the field
@@ -271,7 +273,7 @@ class SummaryPage(BasePage):
         super(SummaryPage, self).__init__(parent)
 
         # -- Load in our ui element
-        self.ui = qute.loadUi(_get_resource('wizard_page_five.ui'))
+        self.ui = qtility.designer.load(_get_resource('wizard_page_five.ui'))
         self.layout().addWidget(self.ui)
 
         self.registerField('actionSaveLocation', self.ui.actionSaveLocation)
@@ -321,7 +323,7 @@ class SummaryPage(BasePage):
         :return:
         """
         # -- Browse for a file
-        path, _ = qute.QFileDialog.getSaveFileName(
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
             self,
             dir=launchpad.LAUNCHPAD_USER_PLUGIN_DIR,
             filter='(*.py)*.py',
@@ -350,7 +352,7 @@ def show():
 
 # ------------------------------------------------------------------------------
 if __name__ == '__main__':
-    app = qute.qApp()
+    app = qtility.app.get()
     _wizard = ClassWizard()
     _wizard.show()
     sys.exit(app.exec_())
